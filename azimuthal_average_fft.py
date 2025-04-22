@@ -1,13 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Apr 16 10:59:07 2024
-
-@author: VERNET MARLONE
-
-
-"""
-
-
 import numpy as np
 from tqdm import tqdm 
 import multiprocessing
@@ -15,8 +5,17 @@ from scipy.interpolate import RegularGridInterpolator, RectBivariateSpline, inte
 import h5py
 import scipy.special as scp
 import scipy.fftpack as scf 
+import xarray as xr
+from natsort import natsorted
+import glob
+import os
+import yaml
 
 import matplotlib.pyplot as plt
+
+import logging
+logging.basicConfig()
+logger = logging.getLogger(__name__)
 
 """ MASK + PADDING """
 xa,xb = 30,30
@@ -26,15 +25,20 @@ N_crop = 10
 
 def set_fourier_domain(folder):
     """return the needed fourier abscisse in k, kx, ky ... """
-    with h5py.File(folder+f'h_map_1.jld2', 'r') as file:
-        # Access the data
-        h_init = file['h_map'][:].T
+
+    height_fields_files = natsorted(glob.glob(os.path.join(folder, '*.nc')), key=lambda y: y.lower())
+    
+    h_init = xr.open_dataarray(height_fields_files[0]).values
     
     h_map = h_init#[xa:-xb,xc:-xd] # Remove 10 points around the edge of the image
     
     nx,ny = h_map.shape
     #Nx,Ny = h_map.shape
     #nx,ny = 2*(Nx//N_crop), 2*(Ny//N_crop)
+
+    #if nx pair
+    h_map = h_map[:-1,:-1]
+    nx,ny = h_map.shape
     
     midx, midy = nx//2, ny//2
     
@@ -60,8 +64,11 @@ def set_fourier_domain(folder):
         mid_i = midy
         k_i = ky
         k_ = k_i[mid_i:]
-        k, theta = np.meshgrid(k_i[mid_i:], t[:128], indexing = 'ij')
-            
+        k_ = k_ + (k_[1]-k_[0])/2        
+        #k, theta = np.meshgrid(k_i[mid_i:], t[:128], indexing = 'ij')
+        k, theta = np.meshgrid(k_, t[:128], indexing = 'ij')
+
+    #k__ = k + (k[1]-k[0])/2        
     kxp = k * np.cos(theta)
     kyp = k * np.sin(theta)   
 
@@ -100,12 +107,17 @@ def polar_average(FFT_2D,kx,ky,kxp,kyp,k_,dtheta,pix_):
 
 def spectre_2D(args):
     folder, j, kx, ky, kxp, kyp, k_, dtheta, pix_ = args
+    #ftp_nc_path, j, kx, ky, kxp, kyp, k_, dtheta, pix_ = args
+    height_fields_files = natsorted(glob.glob(os.path.join(folder, '*.nc')), key=lambda y: y.lower())
     
-    with h5py.File(folder+f'h_map_{j}.jld2', 'r') as file:
-        # Access the data
-        h_map = file['h_map'][:].T
-    
+    h_map = xr.open_dataarray(height_fields_files[j]).values
+
     nx,ny = h_map.shape
+
+    #if nx pair
+    h_map = h_map[:-1,:-1]
+    nx,ny = h_map.shape
+    
     
     h_map[:xa,:] = 0
     h_map[nx-xa:,:] = 0
@@ -138,7 +150,9 @@ def spectre_2D(args):
     # fft2 = np.fft.fft2( h_map_window_xy ) # documentation zero padding 
     # fft2_shift = np.fft.fftshift(fft2)
     
-    fft2 = scf.fft2( h_map_window_xy ) * pix_**2 # pour avoir la bonne unite dans la TF 2D
+    # fft2 = scf.fft2( h_map_window_xy ) * pix_**2 # pour avoir la bonne unite dans la TF 2D
+    # without window
+    fft2 = scf.fft2( h_map ) * pix_**2 # pour avoir la bonne unite dans la TF 2D
     fft2_shift = scf.fftshift( fft2 )
     
     #nx_c,ny_c = nx//N_crop, ny//N_crop # crop of the 2D fft 
@@ -153,13 +167,17 @@ def spectre_2D(args):
 
 
 
-def main(folder,folder_save, N_images,pix_):
-
-
-    with h5py.File(folder+'h_map_1.jld2', 'r') as file:
-        # Access the data
-        h_map = file['h_map'][:].T
+def main(folder,folder_save, pix_):
     
+    height_fields_files = natsorted(glob.glob(os.path.join(folder, '*.nc')), key=lambda y: y.lower())
+    N_images = len(height_fields_files)
+    
+    h_map = xr.open_dataarray(height_fields_files[0]).values
+
+    #if nx pair
+    h_map = h_map[:-1,:-1]
+    nx,ny = h_map.shape
+
     hist, bin_edge = np.histogram(h_map, bins=50) # compute pdf size
     bin_center = (bin_edge[:-1]+bin_edge[1:])/2
     
@@ -174,11 +192,11 @@ def main(folder,folder_save, N_images,pix_):
     histogram_y = np.zeros((Ny, N_images), dtype=np.complex64) 
     spectre_xy = np.zeros((Nx, Ny), dtype=np.complex64) 
     
-    num_processes = 18 # multiprocessing.cpu_count() - 1  # Number of CPU cores - 1
+    num_processes = 10 # multiprocessing.cpu_count() - 1  # Number of CPU cores - 1
     pool = multiprocessing.Pool(processes=num_processes)
     
     kx,ky,kxp,kyp,k_,dtheta = set_fourier_domain(folder)
-    items = [(folder, item_k, kx, ky, kxp, kyp, k_, dtheta,pix_) for item_k in range(1, N_images+1)]
+    items = [(folder, item_k, kx, ky, kxp, kyp, k_, dtheta,pix_) for item_k in range(0, N_images)]
     
     Nk = len(k_)
     dk = 2 * np.pi / (pix_ * 2 * Nk)
@@ -197,7 +215,7 @@ def main(folder,folder_save, N_images,pix_):
             histogram_y[:, j-1] = psd_y
             spectre_xy+=spectre_xy
             
-            np.save(folder_save+f'fft_k_{j-1}.npy',FFT_k)
+            np.save(folder_save+f'fft_k_{j}.npy',FFT_k)
             pbar.update(1)
 
     pool.close()
@@ -206,30 +224,57 @@ def main(folder,folder_save, N_images,pix_):
     return bin_k, pdf_k, std_k, histogram_x, histogram_y, spectre_xy/N_images
 
 
-if __name__ == '__main__':
-    
-    pix = 1e-2/33
-    N_images = 998
-    folder = "E:/DATA_FTP/300924/"
-    name_gen = 'noise'
-    folder_h = folder+f'h_map_{name_gen}/'
-    folder_fft = folder+f'fft_k_{name_gen}/'
+
+
+def save_lines_fft_averaged(measurements_path, folder_name):
+
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    logger.info('---------- FOURIER TRANSFORM ----------')
+
+    folder_h = measurements_path+f'{folder_name}/'
+    folder_fft = measurements_path+f'fft-k-{folder_name}/'
+    if not os.path.exists(folder_fft):
+        logger.info('Create new directory for averaged FFT lines')
+        os.makedirs(folder_fft)
+
+    parameter_file = measurements_path + 'processing_parameters.yaml'
+    ftp_proc_parameters = yaml.safe_load(open(parameter_file))
+    pixel_size = ftp_proc_parameters['MEASUREMENT']['pixel_size']
+    pixel_size = pixel_size/1000
+
     dict_ = dict()
 
-    dict_["bin_t"], dict_["pdf_t"], dict_["std_t"], dict_["psd_x"], dict_["psd_y"], dict_["spectre_kxky"] = main(folder_h,folder_fft, N_images,pix)
+    dict_["bin_t"], dict_["pdf_t"], dict_["std_t"], dict_["psd_x"], dict_["psd_y"], dict_["spectre_kxky"] = main(folder_h,folder_fft, pixel_size)
     
-    np.save(folder+f'data_vs_t_{name_gen}',dict_)
-    
-    # check code:
-    # j = 3000
-    # kx, ky, kxp, kyp, k_, dtheta = set_fourier_domain(folder_h)
-    # arg = folder_h, j, kx, ky, kxp, kyp, k_, dtheta
-    # j, hist, bin_center, std_map, fft2_x, fft2_y, fft_k = spectre_2D(arg)
-    
-    
-    # plt.figure()
-    # plt.imshow(np.log(abs(fft_k)),cmap='turbo')
-    # # plt.loglog(k_, abs(fft_k)**2) 
-    # plt.colorbar()
-    # plt.show()
+    np.save(measurements_path+f'data_vs_t_{folder_name}',dict_) 
+
+    return None
+
+# if __name__ == '__main__':
+#     
+#     pix = 0.416/1000
+#     folder = '/Volumes/T7 Shield/2024-08-24/sweep/'
+#     name_gen = 'sweep-a6.5-f13-20-1min'
+#     folder_h = folder+f'{name_gen}/'
+#     folder_fft = folder+f'fft-k-{name_gen}/'
+#     dict_ = dict()
+# 
+#     dict_["bin_t"], dict_["pdf_t"], dict_["std_t"], dict_["psd_x"], dict_["psd_y"], dict_["spectre_kxky"] = main(folder_h,folder_fft, pix)
+#     
+#     np.save(folder+f'data_vs_t_{name_gen}',dict_)
+#     
+#     # check code:
+#     # j = 3000
+#     # kx, ky, kxp, kyp, k_, dtheta = set_fourier_domain(folder_h)
+#     # arg = folder_h, j, kx, ky, kxp, kyp, k_, dtheta
+#     # j, hist, bin_center, std_map, fft2_x, fft2_y, fft_k = spectre_2D(arg)
+#     
+#     
+#     # plt.figure()
+#     # plt.imshow(np.log(abs(fft_k)),cmap='turbo')
+#     # # plt.loglog(k_, abs(fft_k)**2) 
+#     # plt.colorbar()
+#     # plt.show()
     

@@ -15,16 +15,19 @@ plt.rcParams['font.size']=20
 
 #%%
 
-folder = '/home/tanu/data1/DATA_post/180724/' #'/media/tanu/DATADRIVE0/Hydroelastic_data/120624/'
+faq = 180
+folder = "E:/DATA_FTP/100425/"
 #data2 = dict( np.load(folder2+'spectre_vs_t_k2D_20Hz.npy', allow_pickle=True).item() )
-data = dict( np.load(folder+'data_vs_t_vent_20Hz.npy', allow_pickle=True).item() )
+data = dict( np.load(folder+'data_vs_t_50Hz_65Hz_pad2.npy', allow_pickle=True).item() )
 
 
 psd_x = data['psd_x']
 psd_y = data['psd_y']
 
+spectre_xy = data['spectre_kxky']
 
-p = 1e-2/(40) # conversion en m/pixel
+
+p = 1e-2/(33) # conversion en m/pixel
 
 l_interfrange = 16 * p
 k_interfrange = 2 * np.pi / l_interfrange
@@ -43,7 +46,6 @@ dky = 2*np.pi/(lmin*n_ky )
 k_x = kx*dkx
 k_y = ky*dky
 
-fech = 120
 Nk, Nt = psd_x[:,:].shape
 
 
@@ -80,19 +82,21 @@ f_th_tan = relation_th(T_, k_th, h, g, B)
 
 """ compute relation dispersion """
 
-faq = 120
-f = np.arange(-int(Nt/2),int(Nt/2)+1,1)*(faq/(Nt))
+f = np.arange(-int(Nt/2),int(Nt/2),1)*(faq/(Nt))
 beta = 12
-window = np.hanning(Nt)
-window_v = np.hanning(Nt-1)
+# window = np.hanning(Nt)
+# window_v = np.hanning(Nt-1)
 # window = np.blackman(Nt)
 # window_v = np.blackman(Nt-1)
 # window = np.kaiser(Nt,beta)
 # window_v = np.kaiser(Nt-1,beta)
 
-fft_temps_x = np.fft.fft( (psd_x[:,:]*window) , axis=1)
+# fft_temps_x = np.fft.fft( (psd_x[:,:]*window) , axis=1)
+# fft_temps_y = np.fft.fft( (psd_y[:,:]*window) , axis=1)
+fft_temps_x = np.fft.fft( (psd_x[:,:]) , axis=1)
+fft_temps_y = np.fft.fft( (psd_y[:,:]) , axis=1)
+
 relation_dispersion_x = np.log(abs(np.fft.fftshift(fft_temps_x, axes=1))**2)
-fft_temps_y = np.fft.fft( (psd_y[:,:]*window) , axis=1)
 relation_dispersion_y = np.log(abs(np.fft.fftshift(fft_temps_y,axes=1))**2)
 
 mid_k = int(Nk/2)
@@ -118,7 +122,7 @@ kp = 170
 f_th_bounded = 2*relation(T_, k_th/2, h, g, B)
 f_th_bounded3 = 3*relation(T_, k_th/3, h, g, B)
 
-di = 30
+di = 33
 
 
 
@@ -127,13 +131,13 @@ plt.pcolormesh(KX_[ix-di:ix+di,:]/(2*np.pi),
                 FX[ix-di:ix+di,:], 
                 relation_dispersion_x[ix-di:ix+di,:], 
                 shading='gouraud',
-                vmin=-15,
-                vmax=-9,
+#                vmin=-15,
+#                vmax=-9,
                 cmap='turbo')
 plt.colorbar()
 plt.plot(k_th/(2*np.pi), f_th, '-w')
 plt.plot(-k_th/(2*np.pi), f_th, '-w')
-plt.xlim((-500/(2*np.pi),500/(2*np.pi)))
+plt.xlim((-700/(2*np.pi),700/(2*np.pi)))
 plt.ylim((0,60))
 plt.xlabel(r'$1/\lambda_x~[m^{-1}]$')
 plt.ylabel(r'$f~[Hz]$')
@@ -146,12 +150,12 @@ plt.pcolormesh(KY_[iy-di:iy+di,:]/(2*np.pi),
                 FY[iy-di:iy+di,:], 
                 relation_dispersion_y[iy-di:iy+di,:], 
                 shading='gouraud',
-                vmin=-15,
-                vmax=-9,
+#                vmin=-15,
+#                vmax=-9,
                 cmap='turbo')
 plt.plot(k_th/(2*np.pi), f_th, '-w')
 plt.plot(-k_th/(2*np.pi), f_th, '-w')
-plt.xlim((-500/(2*np.pi),500/(2*np.pi)))
+plt.xlim((-600/(2*np.pi),600/(2*np.pi)))
 plt.ylim((0,60))
 plt.colorbar()
 plt.xlabel(r'$1/\lambda_y~[m^{-1}]$')
@@ -160,43 +164,59 @@ plt.title(rf'$T\sim {T_}~[N/m]$')
 plt.tight_layout()
 plt.show()
 
-# plt.figure(figsize=(7,6))
-# plt.pcolormesh(KX_[ix-di:ix+di,:], 
-#                 FX[ix-di:ix+di,:], 
-#                 relation_dispersion_x[ix-di:ix+di,:], 
-#                 shading='gouraud',
-#                 vmin=7,
-#                 vmax=12,
-#                 cmap='turbo')
-# plt.colorbar()
-# plt.plot(k_th, f_th, '-w')
-# plt.plot(-k_th, f_th, '-w')
-# plt.xlim((-500,500))
-# plt.ylim((0,60))
-# plt.xlabel(r'$k_x~[m^{-1}]$')
-# plt.ylabel(r'$f~[Hz]$')
-# plt.title(rf'$T\sim {T_}~[N/m]$')
-# plt.tight_layout()
-# plt.show()
 
-# plt.figure(figsize=(7,6))
-# plt.pcolormesh(KY_[iy-di:iy+di,:], 
-#                 FY[iy-di:iy+di,:], 
-#                 relation_dispersion_y[iy-di:iy+di,:], 
-#                 shading='gouraud',
-#                 vmin=2,
-#                 vmax=9,
-#                 cmap='turbo')
-# plt.plot(k_th, f_th, '-w')
-# plt.plot(-k_th, f_th, '-w')
-# plt.xlim((-500,500))
-# plt.ylim((0,60))
-# plt.colorbar()
-# plt.xlabel(r'$k_y~[m^{-1}]$')
-# plt.ylabel(r'$f~[Hz]$')
-# plt.title(rf'$T\sim {T_}~[N/m]$')
-# plt.tight_layout()
-# plt.show()
+
+#%%
+""" spectrum mean kx ky """
+
+
+XX,YY = np.meshgrid(Kx,Ky, indexing='ij')
+XX_ = (XX-Kx[ix])*dkx
+YY_ = (YY-Ky[iy])*dky
+
+spectre_plot = np.log10(np.abs(spectre_xy))
+
+circle2 = plt.Circle((0, 0), 42, color='b', fill=False)
+circle3 = plt.Circle((0, 0), 55, color='r', fill=False)
+circle4 = plt.Circle((0, 0), 22, color='w', fill=False)
+
+fig,ax = plt.subplots()
+
+plt.pcolormesh(XX_[ix-di:ix+di,iy-di:iy+di]/(2*np.pi), 
+               YY_[ix-di:ix+di,iy-di:iy+di]/(2*np.pi),
+               spectre_plot[ix-di:ix+di,iy-di:iy+di],
+               shading='gouraud',
+               cmap='magma_r',
+               vmin=-11.6,
+               vmax=-10.6)
+
+x,y=56,-3
+xf,yf=20,12.8
+
+plt.arrow(0, 0, x, y,color='b')
+# plt.arrow(0, 0, -40, 12,color='b')
+# plt.arrow(40, 19, -12.5-40, 15-19,color='b')
+plt.arrow(x, y, xf-x, yf-y,color='r')
+plt.arrow(0, 0, xf-x, yf-y,color='r')
+
+plt.arrow(0, 0, xf, yf,color='w')
+
+ax.add_patch(circle2) 
+ax.add_patch(circle3)
+ax.add_patch(circle4)
+
+plt.colorbar()
+plt.xlabel(r'$1/\lambda_x~[m^{-1}]$')
+plt.ylabel(r'$1/\lambda_y~[m^{-1}]$')
+plt.tight_layout()
+plt.show()
+
+
+k1ns = x**2+y**2
+k2ns = (xf-x)**2+(yf-y)**2
+k3ns = xf**2+yf**2
+
+angle = np.arccos((k3ns-k2ns-k1ns)/(2*np.sqrt(k1ns*k2ns)))
 
 #%%
 

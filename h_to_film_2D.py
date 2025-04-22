@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Apr  4 15:08:47 2024
+Created on Tue Apr 15 17:12:43 2025
 
-@author: VERNET MARLONE 
-
+@author: VERNET
 """
-# 'C:\Users\turbulence\AppData\Roaming\Python\Python312\Scripts'
+
 
 
 import numpy as np
@@ -41,8 +40,9 @@ plt.close('all')
 
 """ Moovie """
 stride = 5
-N_stop = 150
+N_stop = 1000
 fft2k = 0
+col_map = 'turbo'
 
 Vmin = -2
 Vmax = 2
@@ -52,7 +52,7 @@ name_gen = '20Hz'
 folder = f"E:/DATA_FTP/150425/h_map_{name_gen}/"
 #folder_save = "E:/DATA_FTP/111024/"
 folder_save = "C:/Users/turbulence/Desktop/fig_map/"
-name_movie = f'h_fps10_{name_gen}_150525_N{N_stop}_cut_final.mp4'
+name_movie = f'2D_h_fps10_{name_gen}_150525_N{N_stop}_cut_final.mp4'
 
 # h_0 = np.load(folder+f'h_total/h_map_0.npy')
 
@@ -83,7 +83,7 @@ mean_y = np.mean(-h_0[xc:-xc,xc:-xc],axis=0)
 # plt.show()
 
 fig = plt.figure(figsize=(6,6), dpi=300)
-ax = fig.add_subplot(111, projection='3d')
+ax = fig.add_subplot(111)
 with h5py.File(folder+f'h_map_{img_start}.jld2', 'r') as file:
     # Access the data
     h_k = file['h_map'][:].T
@@ -91,16 +91,13 @@ with h5py.File(folder+f'h_map_{img_start}.jld2', 'r') as file:
 mean_y =  np.mean(-h_k[xc:-xc,xc:-xc],axis=1)
 h_zero = np.repeat(mean_y[:,np.newaxis], Ny, axis=1 )
 hh = (h_k[xc:-xc,xc:-xc]+h_zero)*gain
-cc = ax.plot_surface(X_[:,:],Y_[:,:],(hh[:,:]-np.mean(hh[:,:]))*1e3,
-                     rstride=stride, 
-                     cstride=stride,
-                     cmap='Blues',
-                     linewidth=0,
-                     vmin=Vmin,
-                     vmax=Vmax,
-                     antialiased=False) # [250:750]
 
-cbar = fig.colorbar(cc, ax=ax, pad = 0.2, label = r"$\eta$~$[\mathrm{mm}]$")
+cc = ax.pcolormesh(X_, Y_, (hh-np.mean(hh))*1e3, 
+                   cmap=col_map,
+                   vmin=Vmin, 
+                   vmax=Vmax)
+
+cbar = fig.colorbar(cc, ax=ax, label = r"$\eta$~$[\mathrm{mm}]$")
 
 
 def animate(n):
@@ -115,29 +112,18 @@ def animate(n):
     mean_y =  np.mean(-h_k[xc:-xc,xc:-xc],axis=1)
     h_zero = np.repeat(mean_y[:,np.newaxis], Ny, axis=1 )
     hh = (h_k[xc:-xc,xc:-xc]+h_zero)*gain
-    cc = ax.plot_surface(X_[:,:],Y_[:,:],(hh[:,:]-np.mean(hh[:,:]))*1e3,
-                         rstride=stride, 
-                         cstride=stride,
-                         cmap='Blues',
-                         linewidth=0,
-                         vmin=Vmin,
-                         vmax=Vmax,
-                         antialiased=False) # [250:750]
-    
+
+    plt.pcolormesh(X_, Y_, (hh-np.mean(hh))*1e3, 
+                   cmap=col_map, 
+                   vmin=Vmin, 
+                   vmax=Vmax)
+
     cbar.update_ticks()
-    ax.set_zlim((Vmin,Vmax))
-    ax.view_init(40,n+90)
-    ax.xaxis.pane.fill=False
-    ax.yaxis.pane.fill=False
-    ax.zaxis.pane.fill=False
-    ax.xaxis.pane.set_edgecolor('grey')
-    ax.yaxis.pane.set_edgecolor('grey')
-    ax.zaxis.pane.set_edgecolor('grey')
+
     
     ax.grid(False)
     ax.set_xlabel(r'$x~[\mathrm{mm}]$')
     ax.set_ylabel(r'$y~[\mathrm{mm}]$')
-    ax.set_zlabel(r'$z~[\mathrm{mm}]$')
 
 
     #ax.set_title(f'{n}')
